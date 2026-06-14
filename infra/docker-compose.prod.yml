@@ -1,0 +1,114 @@
+# Production-like stack: API + worker + datastores + observability + code sandbox.
+# Usage (from repo root):  docker compose -f infra/docker-compose.prod.yml --env-file .env up -d
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-prepforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prepforge}
+      POSTGRES_DB: ${POSTGRES_DB:-prepforge}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prepforge}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    env_file: ../.env
+    environment:
+      ENVIRONMENT: production
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-prepforge}:${POSTGRES_PASSWORD:-prepforge}@postgres:5432/${POSTGRES_DB:-prepforge}
+      REDIS_URL: redis://redis:6379/0
+      JUDGE0_URL: http://judge0:2358
+      ALLOW_LOCAL_CODE_EXECUTION: "false"
+      METRICS_ENABLED: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    env_file: ../.env
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-prepforge}:${POSTGRES_PASSWORD:-prepforge}@postgres:5432/${POSTGRES_DB:-prepforge}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
+    restart: unless-stopped
+
+  # ── Code execution sandbox (Judge0) ──────────────────────────────
+  judge0:
+    image: judge0/judge0:1.13.1
+    privileged: true
+    environment:
+      REDIS_HOST: redis
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  # ── Observability ────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on: [prometheus, loki]
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  grafana-data:

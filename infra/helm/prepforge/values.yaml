@@ -1,0 +1,55 @@
+image:
+  repository: ghcr.io/OWNER/REPO/backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+backend:
+  replicaCount: 3
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+worker:
+  enabled: true
+  replicaCount: 2
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+migrations:
+  enabled: true   # run `alembic upgrade head` as a pre-install/upgrade hook
+
+service:
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.prepforge.example.com
+  tls: true
+  tlsSecret: prepforge-tls
+
+# Non-secret configuration → ConfigMap.
+config:
+  ENVIRONMENT: production
+  API_V1_PREFIX: /api/v1
+  REDIS_URL: redis://prepforge-redis:6379/0
+  JUDGE0_URL: http://judge0:2358
+  ALLOW_LOCAL_CODE_EXECUTION: "false"
+  METRICS_ENABLED: "true"
+  OTEL_ENABLED: "true"
+  LLM_PROVIDER: ollama
+
+# Secrets → provide via External Secrets / Vault in real clusters. Empty by default.
+secrets:
+  SECRET_KEY: ""
+  DATABASE_URL: ""
+  POSTGRES_USER: ""
+  POSTGRES_PASSWORD: ""
+  POSTGRES_DB: ""

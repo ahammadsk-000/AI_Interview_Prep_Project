@@ -1,0 +1,22 @@
+# Runs Alembic migrations before/independent of the rolling app deploy.
+# In CD, apply this Job (with a unique name or `kubectl delete job` first) on each release.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prepforge-migrate
+  namespace: prepforge
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels: { app: prepforge-migrate }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/OWNER/REPO/backend:latest   # set by CD
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef: { name: prepforge-config }
+            - secretRef: { name: prepforge-secrets }

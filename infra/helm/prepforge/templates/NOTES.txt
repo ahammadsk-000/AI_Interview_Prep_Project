@@ -1,0 +1,11 @@
+PrepForge {{ .Chart.AppVersion }} deployed as release "{{ .Release.Name }}".
+
+API service:   {{ include "prepforge.fullname" . }}-backend (port {{ .Values.service.port }})
+{{- if .Values.ingress.enabled }}
+Public URL:    https://{{ .Values.ingress.host }}  (docs at /docs, metrics at /metrics)
+{{- end }}
+
+Migrations ran as a pre-upgrade Helm hook (alembic upgrade head).
+
+Check rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "prepforge.fullname" . }}-backend

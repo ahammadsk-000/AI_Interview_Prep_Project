@@ -1,0 +1,48 @@
+# Dev/self-hosted Postgres. In production prefer a managed HA Postgres with pgvector
+# and point DATABASE_URL at it instead of deploying this StatefulSet.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prepforge-postgres
+  namespace: prepforge
+spec:
+  serviceName: prepforge-postgres
+  replicas: 1
+  selector:
+    matchLabels: { app: prepforge-postgres }
+  template:
+    metadata:
+      labels: { app: prepforge-postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef: { name: prepforge-secrets }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "prepforge"] }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prepforge-postgres
+  namespace: prepforge
+spec:
+  selector: { app: prepforge-postgres }
+  ports:
+    - port: 5432
+      targetPort: 5432

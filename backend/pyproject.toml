@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prepforge-backend"
+version = "0.1.0"
+description = "PrepForge — AI Interview Preparation Platform backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "redis>=5.0",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.8",
+    "python-multipart>=0.0.9",
+    "email-validator>=2.1",
+    "httpx>=0.27",
+    "structlog>=24.1",
+    "pypdf>=4.2",
+    "python-docx>=1.1",
+    "celery[redis]>=5.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "aiosqlite>=0.20",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "C4"]
+ignore = [
+    "B008",   # FastAPI Depends() in defaults is idiomatic
+    "UP042",  # `class X(str, Enum)` is a valid, widely-used idiom
+    "UP046",  # PEP 695 generics are optional, not required
+]
+
+[tool.ruff.lint.per-file-ignores]
+# ast.NodeVisitor dispatch methods must be `visit_<Node>` (mixedCase, framework-required).
+"app/domain/coding/complexity.py" = ["N815"]
+# Tests use long inline fixture strings and broad `pytest.raises(Exception)`.
+"tests/**" = ["E501", "B017"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+disallow_untyped_defs = false

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prepforge-config
+  namespace: prepforge
+data:
+  ENVIRONMENT: "production"
+  API_V1_PREFIX: "/api/v1"
+  REDIS_URL: "redis://prepforge-redis:6379/0"
+  JUDGE0_URL: "http://judge0:2358"
+  ALLOW_LOCAL_CODE_EXECUTION: "false"
+  METRICS_ENABLED: "true"
+  OTEL_ENABLED: "true"
+  OTEL_SERVICE_NAME: "prepforge-backend"
+  LLM_PROVIDER: "ollama"
+---
+# Example secret — populate from a real secret manager (External Secrets / Vault).
+# Do NOT commit real values. `stringData` shown for clarity only.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prepforge-secrets
+  namespace: prepforge
+type: Opaque
+stringData:
+  SECRET_KEY: "change-me-from-secret-manager"
+  DATABASE_URL: "postgresql+asyncpg://prepforge:prepforge@prepforge-postgres:5432/prepforge"
+  POSTGRES_USER: "prepforge"
+  POSTGRES_PASSWORD: "prepforge"
+  POSTGRES_DB: "prepforge"
