@@ -6,16 +6,16 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
-from app.core.database import Base
+from app.core.database import Base, engine, normalize_db_url
 
 # Importing the model registry populates Base.metadata for autogenerate.
 import app.models  # noqa: F401,E402
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Offline mode only — use the cleaned URL (SSL params stripped) for literal rendering.
+config.set_main_option("sqlalchemy.url", normalize_db_url(settings.DATABASE_URL)[0])
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -47,14 +47,10 @@ def _do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    connectable = async_engine_from_config(
-        {"sqlalchemy.url": settings.DATABASE_URL},
-        prefix="sqlalchemy.",
-        future=True,
-    )
-    async with connectable.connect() as connection:
+    # Reuse the app engine so SSL / connect_args handling is identical (asyncpg-safe).
+    async with engine.connect() as connection:
         await connection.run_sync(_do_run_migrations)
-    await connectable.dispose()
+    await engine.dispose()
 
 
 if context.is_offline_mode():

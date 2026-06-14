@@ -25,15 +25,13 @@ frontend and backend automatically.
    ```
    postgresql://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require
    ```
-4. **Convert it for this app** (two edits):
-   - change `postgresql://` → `postgresql+asyncpg://`
-   - change `?sslmode=require` → `?ssl=require`
-   
-   Final value to use as `DATABASE_URL`:
+4. **Convert it for this app** — just one edit: change the scheme `postgresql://` →
+   `postgresql+asyncpg://`. You can leave the rest (including `?sslmode=require`) exactly as
+   Neon gives it — the app strips libpq SSL params automatically and enables SSL for you.
    ```
-   postgresql+asyncpg://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?ssl=require
+   postgresql+asyncpg://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require
    ```
-   Keep this handy for Step 2.
+   Keep this handy for Step 2. (Tip: use Neon's **pooled** connection string.)
 
 ---
 

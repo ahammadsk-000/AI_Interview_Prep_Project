@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.ext.asyncio import (
@@ -15,31 +16,63 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.core.config import settings
 
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "")
 
-def _engine_kwargs(url: str) -> dict:
+
+def normalize_db_url(url: str) -> tuple[str, dict]:
+    """Return (clean_url, connect_args).
+
+    asyncpg does NOT understand libpq-style query params (``sslmode``,
+    ``channel_binding``, ``ssl``) in the URL, so we strip them and pass SSL via
+    ``connect_args`` instead. Managed Postgres (e.g. Neon/Supabase) requires SSL;
+    local Postgres does not. SQLite is returned unchanged.
+    """
+    if url.startswith("sqlite"):
+        return url, {}
+
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    sslmode = query.pop("sslmode", None)
+    ssl_q = query.pop("ssl", None)
+    query.pop("channel_binding", None)
+    clean = urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
+
+    connect_args: dict = {}
+    if "+asyncpg" in parts.scheme:
+        host = (parts.hostname or "").lower()
+        is_local = host in _LOCAL_HOSTS
+        ssl_disabled = sslmode == "disable" or ssl_q in ("false", "disable")
+        # Default to SSL for any non-local host (covers Neon/Supabase/RDS).
+        if not is_local and not ssl_disabled:
+            connect_args["ssl"] = True
+    return clean, connect_args
+
+
+def make_async_engine(url: str):
+    clean, connect_args = normalize_db_url(url)
     kwargs: dict = {
         "echo": settings.DEBUG and settings.ENVIRONMENT == "development",
         "pool_pre_ping": True,
         "future": True,
     }
-    # SQLite (tests) doesn't take a sized connection pool; only tune real servers.
-    if not url.startswith("sqlite"):
+    if not clean.startswith("sqlite"):
         kwargs.update(
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
             pool_recycle=settings.DB_POOL_RECYCLE_SEC,
         )
-    return kwargs
+    if connect_args:
+        kwargs["connect_args"] = connect_args
+    return create_async_engine(clean, **kwargs)
 
 
-engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs(settings.DATABASE_URL))
+engine = make_async_engine(settings.DATABASE_URL)
 
 # Read replica for read-heavy paths (analytics). Falls back to the primary engine.
 _read_url = settings.READ_DATABASE_URL or settings.DATABASE_URL
-read_engine = (
-    engine if _read_url == settings.DATABASE_URL
-    else create_async_engine(_read_url, **_engine_kwargs(_read_url))
-)
+read_engine = engine if _read_url == settings.DATABASE_URL else make_async_engine(_read_url)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
