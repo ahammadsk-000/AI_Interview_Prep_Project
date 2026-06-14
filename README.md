@@ -25,6 +25,9 @@ Prometheus/Grafana/Loki): `docker compose -f infra/docker-compose.prod.yml --env
 Kubernetes via raw manifests (`infra/k8s/`) or the Helm chart (`infra/helm/prepforge/`).
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+**Go live for free** (Vercel + Render + Neon, with auto-deploy on push):
+see [docs/DEPLOY_FREE.md](docs/DEPLOY_FREE.md). A Render Blueprint (`render.yaml`) is included.
+
 ## Quickstart (backend, Phase 1)
 ```bash
 cd backend

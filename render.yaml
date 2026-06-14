@@ -1,0 +1,49 @@
+# Render Blueprint for the PrepForge backend (FastAPI).
+# Render reads this automatically when you create a "Blueprint" from the repo.
+# Auto-deploy is ON: every push to the default branch redeploys the backend.
+# Database is external (Neon free Postgres) — set DATABASE_URL in the dashboard.
+services:
+  - type: web
+    name: prepforge-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    buildCommand: pip install -e .
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: ENVIRONMENT
+        value: production
+      # Security: never run untrusted user code on a shared host.
+      - key: ALLOW_LOCAL_CODE_EXECUTION
+        value: "false"
+      # No Redis on the free tier — these features fail open / use in-memory.
+      - key: RATE_LIMIT_ENABLED
+        value: "false"
+      - key: CACHE_ENABLED
+        value: "false"
+      # Auto-generated strong secret for JWT signing.
+      - key: SECRET_KEY
+        generateValue: true
+      # Set these in the Render dashboard (marked sync:false = not stored in git):
+      #   DATABASE_URL          -> your Neon connection string (see docs/DEPLOY_FREE.md)
+      #   BACKEND_CORS_ORIGINS  -> ["https://<your-app>.vercel.app"]
+      - key: DATABASE_URL
+        sync: false
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      # ---- Optional: free real AI via Groq (OpenAI-compatible). ----
+      # Leave LLM_PROVIDER=ollama to use built-in deterministic fallbacks,
+      # or set these three to enable Groq (see docs/DEPLOY_FREE.md).
+      - key: LLM_PROVIDER
+        value: ollama
+      - key: OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
