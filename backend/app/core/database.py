@@ -31,12 +31,21 @@ def normalize_db_url(url: str) -> tuple[str, dict]:
         return url, {}
 
     parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query))
-    sslmode = query.pop("sslmode", None)
-    ssl_q = query.pop("ssl", None)
-    query.pop("channel_binding", None)
+    sslmode = ssl_q = None
+    kept: list[tuple[str, str]] = []
+    # Tolerate malformed queries (e.g. a stray '??' producing a '?ssl' key).
+    for raw_key, value in parse_qsl(parts.query, keep_blank_values=True):
+        key = raw_key.lstrip("?").lower()
+        if key == "sslmode":
+            sslmode = value
+        elif key == "ssl":
+            ssl_q = value
+        elif key == "channel_binding":
+            continue
+        else:
+            kept.append((raw_key, value))
     clean = urlunsplit(
-        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+        (parts.scheme, parts.netloc, parts.path, urlencode(kept), parts.fragment)
     )
 
     connect_args: dict = {}

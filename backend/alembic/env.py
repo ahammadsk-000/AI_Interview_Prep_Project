@@ -14,8 +14,9 @@ from app.core.database import Base, engine, normalize_db_url
 import app.models  # noqa: F401,E402
 
 config = context.config
-# Offline mode only — use the cleaned URL (SSL params stripped) for literal rendering.
-config.set_main_option("sqlalchemy.url", normalize_db_url(settings.DATABASE_URL)[0])
+# NOTE: we do NOT push the DB URL into Alembic's ini config — ConfigParser does
+# %-interpolation and would choke on URL-encoded characters. Online migrations use
+# the app engine directly; offline mode builds the URL itself below.
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -25,7 +26,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.DATABASE_URL,
+        url=normalize_db_url(settings.DATABASE_URL)[0],
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
